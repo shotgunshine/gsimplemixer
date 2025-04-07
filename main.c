@@ -22,13 +22,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <gtk/gtk.h>
 
 #define SPACING 4
-#define VOLUME_STEP 0.5
-#define VOLUME_MAX 150.0
 
 typedef struct {
-	pa_glib_mainloop* mainloop;
-	pa_context* context;
-	GtkWidget* window;
 	GtkWidget* container;
 	GList* items;
 } Mixer;
@@ -53,7 +48,7 @@ static MixerItem* new_mixer_item(pa_context *c, uint32_t index, const char *icon
 	gtk_widget_set_valign(mixer_item->button, GTK_ALIGN_CENTER);
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(mixer_item->button), muted);
 
-	mixer_item->slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, VOLUME_MAX, VOLUME_STEP);
+	mixer_item->slider = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 150.0, 0.5); /* page = 10 * step */
 	gtk_widget_set_hexpand(mixer_item->slider, TRUE);
 	gtk_range_set_value(GTK_RANGE(mixer_item->slider), volume);
 
@@ -239,25 +234,25 @@ static void context_state_callback(pa_context *context, void *userdata){
 static void activate(GtkApplication *app, gpointer user_data) {
 	Mixer* mixer = user_data;
 
-	mixer->window = gtk_application_window_new(app);
-	gtk_window_set_title(GTK_WINDOW(mixer->window), "Volume Control");
-	gtk_window_set_default_size(GTK_WINDOW(mixer->window), 250, 0);
-	gtk_window_set_resizable(GTK_WINDOW(mixer->window), false);
+	GtkWidget* window = gtk_application_window_new(app);
+	gtk_window_set_title(GTK_WINDOW(window), "Volume Control");
+	gtk_window_set_default_size(GTK_WINDOW(window), 250, 0);
+	gtk_window_set_resizable(GTK_WINDOW(window), false);
 
 	mixer->container = gtk_box_new(GTK_ORIENTATION_VERTICAL, SPACING);
 	gtk_widget_set_margin_bottom(mixer->container, SPACING);
 	gtk_widget_set_margin_top(mixer->container, SPACING);
 	gtk_widget_set_margin_start(mixer->container, SPACING);
 	gtk_widget_set_margin_end(mixer->container, SPACING);
-	gtk_window_set_child(GTK_WINDOW(mixer->window), mixer->container);
+	gtk_window_set_child(GTK_WINDOW(window), mixer->container);
 
 	pa_glib_mainloop* mainloop = pa_glib_mainloop_new(g_main_context_default());
 	pa_mainloop_api* api = pa_glib_mainloop_get_api(mainloop);
 	pa_context* context = pa_context_new(api, NULL);
-	pa_context_connect(context, NULL, PA_CONTEXT_NOFAIL, NULL);
 	pa_context_set_state_callback(context, context_state_callback, mixer);
+	pa_context_connect(context, NULL, PA_CONTEXT_NOFAIL, NULL);
 
-	gtk_window_present(GTK_WINDOW(mixer->window));
+	gtk_window_present(GTK_WINDOW(window));
 }
 
 int main(int argc, char **argv) {
