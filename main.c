@@ -75,14 +75,15 @@ static void remove_mixer_item(uint32_t index, void *userdata) {
 	GList *l = mixer->items;
 	MixerItem *item;
 	while (l != NULL) {
-		GList *next = l->next;
 		item = l->data;
-		if (item->index == index) break;
-		l = next;
+		if (item->index == index) {
+			gtk_box_remove(GTK_BOX(mixer->container), item->controls);
+			mixer->items = g_list_remove(mixer->items, item);
+			g_free(item);
+			break;
+		}
+		l = l->next;
 	}
-	gtk_box_remove(GTK_BOX(mixer->container), item->controls);
-	mixer->items = g_list_remove(mixer->items, item);
-	g_free(item);
 }
 
 static void set_volume_sink(GtkWidget *range, void *userdata) {
@@ -121,19 +122,18 @@ static void change_sink(pa_context *c, const pa_sink_info *i, int eol, void *use
 		GList *l = mixer->items;
 		MixerItem *sink;
 		while (l != NULL) {
-			GList *next = l->next;
 			sink= l->data;
-			if (sink->index == i->index) break;
-			l = next;
+			if (sink->index == i->index) {
+				const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
+				char volume_string[10];
+				sprintf(volume_string, "%.0f%%", volume);
+				gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink->button), i->mute);
+				gtk_range_set_value(GTK_RANGE(sink->slider), volume);
+				gtk_label_set_text(GTK_LABEL(sink->label), volume_string);
+				break;
+			}
+			l = l->next;
 		}
-
-		const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
-		char volume_string[10];
-		sprintf(volume_string, "%.0f%%", volume);
-
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink->button), i->mute);
-		gtk_range_set_value(GTK_RANGE(sink->slider), volume);
-		gtk_label_set_text(GTK_LABEL(sink->label), volume_string);
 	}
 }
 
@@ -158,19 +158,18 @@ static void change_sink_input(pa_context *c, const pa_sink_input_info *i, int eo
 		GList *l = mixer->items;
 		MixerItem *sink_input;
 		while (l != NULL) {
-			GList *next = l->next;
 			sink_input = l->data;
-			if (sink_input->index == i->index) break;
-			l = next;
+			if (sink_input->index == i->index) {
+				const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
+				char volume_string[10];
+				sprintf(volume_string, "%.0f%%", volume);
+				gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink_input->button), i->mute);
+				gtk_range_set_value(GTK_RANGE(sink_input->slider), volume);
+				gtk_label_set_text(GTK_LABEL(sink_input->label), volume_string);
+				break;
+			}
+			l = l->next;
 		}
-
-		const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
-		char volume_string[10];
-		sprintf(volume_string, "%.0f%%", volume);
-
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink_input->button), i->mute);
-		gtk_range_set_value(GTK_RANGE(sink_input->slider), volume);
-		gtk_label_set_text(GTK_LABEL(sink_input->label), volume_string);
 	}
 }
 
