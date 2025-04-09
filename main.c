@@ -86,7 +86,25 @@ static void remove_mixer_item(uint32_t index, void *userdata) {
 	}
 }
 
-static pa_cvolume get_cvolume(GtkRange* range) {
+static void change_mixer_item(uint32_t index, float volume, int mute, void *userdata) {
+	Mixer *mixer = userdata;
+	GList *l = mixer->items;
+	MixerItem *item;
+	while (l != NULL) {
+		item = l->data;
+		if (item->index == index) {
+			char volume_string[10];
+			sprintf(volume_string, "%.0f%%", volume);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item->button), mute);
+			gtk_range_set_value(GTK_RANGE(item->slider), volume);
+			gtk_label_set_text(GTK_LABEL(item->label), volume_string);
+			break;
+		}
+		l = l->next;
+	}
+}
+
+static pa_cvolume get_cvolume(GtkRange *range) {
 	float value = gtk_range_get_value(GTK_RANGE(range)) / 100.0;
 	pa_cvolume volume;
 	volume.channels = 2;
@@ -94,6 +112,10 @@ static pa_cvolume get_cvolume(GtkRange* range) {
 	volume.values[1] = PA_VOLUME_NORM * value;
 
 	return volume;
+}
+
+static float get_volume(pa_cvolume cvolume) {
+	return 100.0 * pa_cvolume_avg(&cvolume) / PA_VOLUME_NORM;
 }
 
 static void set_volume_sink(GtkWidget *range, void *userdata) {
@@ -109,10 +131,8 @@ static void toggle_muted_sink(GtkWidget *toggle, void *userdata) {
 
 static void new_sink(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
 	if (!eol) {
-		const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
-
 		Mixer *mixer = userdata;
-		MixerItem* sink = new_mixer_item(c, i->index, "audio-volume-medium-symbolic", volume, i->mute);
+		MixerItem* sink = new_mixer_item(c, i->index, "audio-volume-medium-symbolic", get_volume(i->volume), i->mute);
 		mixer->items = g_list_append(mixer->items, sink);
 
 		g_signal_connect(sink->button, "clicked", G_CALLBACK(toggle_muted_sink), sink);
@@ -124,28 +144,12 @@ static void new_sink(pa_context *c, const pa_sink_info *i, int eol, void *userda
 
 static void change_sink(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
 	if (!eol) {
-		Mixer *mixer = userdata;
-		GList *l = mixer->items;
-		MixerItem *sink;
-		while (l != NULL) {
-			sink= l->data;
-			if (sink->index == i->index) {
-				const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
-				char volume_string[10];
-				sprintf(volume_string, "%.0f%%", volume);
-				gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink->button), i->mute);
-				gtk_range_set_value(GTK_RANGE(sink->slider), volume);
-				gtk_label_set_text(GTK_LABEL(sink->label), volume_string);
-				break;
-			}
-			l = l->next;
-		}
+		change_mixer_item(i->index, get_volume(i->volume), i->mute, userdata);
 	}
 }
 
 static void set_volume_sink_input(GtkWidget *range, void *userdata) {
 	MixerItem *sink = userdata;
-	float value = gtk_range_get_value(GTK_RANGE(range)) / 100.0;
 	pa_cvolume volume = get_cvolume(GTK_RANGE(range));
 	pa_context_set_sink_input_volume(sink->context, sink->index, &volume, NULL, NULL);
 }
@@ -157,22 +161,7 @@ static void toggle_muted_sink_input(GtkWidget *toggle, void *userdata) {
 
 static void change_sink_input(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata) {
 	if (!eol) {
-		Mixer *mixer = userdata;
-		GList *l = mixer->items;
-		MixerItem *sink_input;
-		while (l != NULL) {
-			sink_input = l->data;
-			if (sink_input->index == i->index) {
-				const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
-				char volume_string[10];
-				sprintf(volume_string, "%.0f%%", volume);
-				gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sink_input->button), i->mute);
-				gtk_range_set_value(GTK_RANGE(sink_input->slider), volume);
-				gtk_label_set_text(GTK_LABEL(sink_input->label), volume_string);
-				break;
-			}
-			l = l->next;
-		}
+		change_mixer_item(i->index, get_volume(i->volume), i->mute, userdata);
 	}
 }
 
@@ -180,10 +169,9 @@ static void new_sink_input(pa_context *c, const pa_sink_input_info *i, int eol, 
 	if (!eol) {
 		const char *icon_name = pa_proplist_gets(i->proplist, "application.icon_name");
 		const char *binary_name = pa_proplist_gets(i->proplist, "application.process.binary");
-		const float volume = (float)pa_cvolume_avg(&(i->volume)) / PA_VOLUME_NORM * 100;
 
 		Mixer *mixer = userdata;
-		MixerItem* sink_input = new_mixer_item(c, i->index, (icon_name == NULL) ? binary_name : icon_name, volume, i->mute);
+		MixerItem* sink_input = new_mixer_item(c, i->index, (icon_name == NULL) ? binary_name : icon_name, get_volume(i->volume), i->mute);
 		mixer->items = g_list_append(mixer->items, sink_input);
 
 		g_signal_connect(sink_input->button, "clicked", G_CALLBACK(toggle_muted_sink_input), sink_input);
