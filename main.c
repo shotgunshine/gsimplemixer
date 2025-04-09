@@ -86,13 +86,19 @@ static void remove_mixer_item(uint32_t index, void *userdata) {
 	}
 }
 
-static void set_volume_sink(GtkWidget *range, void *userdata) {
-	MixerItem *sink = userdata;
+static pa_cvolume get_cvolume(GtkRange* range) {
 	float value = gtk_range_get_value(GTK_RANGE(range)) / 100.0;
 	pa_cvolume volume;
 	volume.channels = 2;
 	volume.values[0] = PA_VOLUME_NORM * value;
 	volume.values[1] = PA_VOLUME_NORM * value;
+
+	return volume;
+}
+
+static void set_volume_sink(GtkWidget *range, void *userdata) {
+	MixerItem *sink = userdata;
+	pa_cvolume volume = get_cvolume(GTK_RANGE(range));
 	pa_context_set_sink_volume_by_index(sink->context, sink->index, &volume, NULL, NULL);
 }
 
@@ -140,10 +146,7 @@ static void change_sink(pa_context *c, const pa_sink_info *i, int eol, void *use
 static void set_volume_sink_input(GtkWidget *range, void *userdata) {
 	MixerItem *sink = userdata;
 	float value = gtk_range_get_value(GTK_RANGE(range)) / 100.0;
-	pa_cvolume volume;
-	volume.channels = 2;
-	volume.values[0] = PA_VOLUME_NORM * value;
-	volume.values[1] = PA_VOLUME_NORM * value;
+	pa_cvolume volume = get_cvolume(GTK_RANGE(range));
 	pa_context_set_sink_input_volume(sink->context, sink->index, &volume, NULL, NULL);
 }
 
