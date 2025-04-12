@@ -20,8 +20,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <pulse/pulseaudio.h>
 #include <pulse/glib-mainloop.h>
 #include <gtk/gtk.h>
+#include <gtk4-layer-shell/gtk4-layer-shell.h>
 
 #define SPACING 4
+
+static gboolean no_layer_shell = FALSE;
+static GtkLayerShellLayer default_layer = GTK_LAYER_SHELL_LAYER_TOP;
+static gboolean default_anchors[] = {FALSE, TRUE, FALSE, TRUE};
 
 typedef struct {
 	GtkWidget* container;
@@ -229,6 +234,13 @@ static void activate(GtkApplication *app, gpointer user_data) {
 	gtk_window_set_default_size(GTK_WINDOW(window), 250, 0);
 	gtk_window_set_resizable(GTK_WINDOW(window), false);
 
+	if (!no_layer_shell) {
+		gtk_layer_init_for_window(GTK_WINDOW(window));
+		gtk_layer_set_layer(GTK_WINDOW(window), default_layer);
+		for (int i = 0; i < GTK_LAYER_SHELL_EDGE_ENTRY_NUMBER; i++)
+			gtk_layer_set_anchor(GTK_WINDOW(window), i, default_anchors[i]);
+	}
+
 	mixer->container = gtk_box_new(GTK_ORIENTATION_VERTICAL, SPACING);
 	gtk_widget_set_margin_bottom(mixer->container, SPACING);
 	gtk_widget_set_margin_top(mixer->container, SPACING);
@@ -245,13 +257,43 @@ static void activate(GtkApplication *app, gpointer user_data) {
 	gtk_window_present(GTK_WINDOW(window));
 }
 
+gboolean anchor_option_callback(const gchar* _option_name, const gchar* value, void* _data, GError **error) {
+	for (int i = 0; i < GTK_LAYER_SHELL_EDGE_ENTRY_NUMBER; i++)
+		default_anchors[i] = FALSE;
+
+	for (const char* c = value; *c; c++) {
+		if (*c == 'l') {
+			default_anchors[GTK_LAYER_SHELL_EDGE_LEFT] = TRUE;
+		} else if (*c == 'r') {
+			default_anchors[GTK_LAYER_SHELL_EDGE_RIGHT] = TRUE;
+		} else if (*c == 't') {
+			default_anchors[GTK_LAYER_SHELL_EDGE_TOP] = TRUE;
+		} else if (*c == 'b') {
+			default_anchors[GTK_LAYER_SHELL_EDGE_BOTTOM] = TRUE;
+		}
+	}
+
+	return TRUE;
+}
+
+static const GOptionEntry options[] = {
+	{"anchor", 'a', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, (void*)&anchor_option_callback, "A sequence of 'l', 'r', 't' and 'b' to anchor to those edges", NULL},
+	{"no-layer-shell", 'n', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &no_layer_shell, "Disable gtk4-layer-shell, create a normal shell surface instead", NULL},
+	G_OPTION_ENTRY_NULL
+};
+
 int main(int argc, char **argv) {
+	GError *error = NULL;
+	GOptionContext* context = g_option_context_new("");
+	g_option_context_add_main_entries(context, options, NULL);
+	g_option_context_parse(context, &argc, &argv, &error);
 	GtkApplication* app = gtk_application_new("org.gsimplemixer", G_APPLICATION_DEFAULT_FLAGS);
 	Mixer* mixer = g_new0(Mixer, 1);
 	g_signal_connect(app, "activate", G_CALLBACK(activate), mixer);
 	int status = g_application_run(G_APPLICATION(app), argc, argv);
 	g_object_unref(app);
 	g_free(mixer);
+	g_option_context_free(context);
 
 	return status;
 }
