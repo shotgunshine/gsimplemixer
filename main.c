@@ -21,6 +21,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #include <pulse/glib-mainloop.h>
 #include <gtk/gtk.h>
 #include <gtk4-layer-shell/gtk4-layer-shell.h>
+#include <glib-2.0/glib-unix.h>
 
 #define SPACING 4
 
@@ -226,6 +227,11 @@ static void context_state_callback(pa_context *context, void *userdata){
 	}
 }
 
+static gboolean toggle_visible(GtkWidget *widget) {
+	gtk_widget_set_visible(widget, !gtk_widget_get_visible(widget));
+	return G_SOURCE_CONTINUE;
+}
+
 static void activate(GtkApplication *app, gpointer user_data) {
 	Mixer* mixer = user_data;
 
@@ -239,6 +245,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
 		gtk_layer_set_layer(GTK_WINDOW(window), default_layer);
 		for (int i = 0; i < GTK_LAYER_SHELL_EDGE_ENTRY_NUMBER; i++)
 			gtk_layer_set_anchor(GTK_WINDOW(window), i, default_anchors[i]);
+		g_unix_signal_add(SIGUSR1, G_SOURCE_FUNC(toggle_visible), window);
 	}
 
 	mixer->container = gtk_box_new(GTK_ORIENTATION_VERTICAL, SPACING);
