@@ -26,6 +26,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 #define SPACING 4
 
 static gboolean no_layer_shell = FALSE;
+static gboolean start_hidden = FALSE;
 static GtkLayerShellLayer default_layer = GTK_LAYER_SHELL_LAYER_TOP;
 static gboolean default_anchors[] = {FALSE, TRUE, FALSE, TRUE};
 
@@ -262,6 +263,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
 	pa_context_connect(context, NULL, PA_CONTEXT_NOFAIL, NULL);
 
 	gtk_window_present(GTK_WINDOW(window));
+	if (!no_layer_shell && start_hidden) gtk_widget_set_visible(window, FALSE);
 }
 
 gboolean anchor_option_callback(const gchar* _option_name, const gchar* value, void* _data, GError **error) {
@@ -286,6 +288,7 @@ gboolean anchor_option_callback(const gchar* _option_name, const gchar* value, v
 static const GOptionEntry options[] = {
 	{"anchor", 'a', G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, (void*)&anchor_option_callback, "A sequence of 'l', 'r', 't' and 'b' to anchor to those edges", NULL},
 	{"no-layer-shell", 'n', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &no_layer_shell, "Disable gtk4-layer-shell, create a normal shell surface instead", NULL},
+	{"start-hidden", 'h', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &start_hidden, "", NULL},
 	G_OPTION_ENTRY_NULL
 };
 
