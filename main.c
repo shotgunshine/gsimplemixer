@@ -44,7 +44,7 @@ typedef struct {
 	GtkWidget* controls;
 } MixerItem;
 
-static MixerItem* new_mixer_item(pa_context *c, uint32_t index, const char *icon_name, float volume, int muted) {
+static MixerItem* new_mixer_item(pa_context *c, uint32_t index, const char *icon_name, float volume, int muted, const char *tooltip_text) {
 	MixerItem* mixer_item = g_new0(MixerItem, 1);
 	mixer_item->context = c;
 	mixer_item->index = index;
@@ -70,6 +70,7 @@ static MixerItem* new_mixer_item(pa_context *c, uint32_t index, const char *icon
 
 	mixer_item->controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, SPACING);
 	gtk_box_set_spacing(GTK_BOX(mixer_item->controls), SPACING);
+	gtk_widget_set_tooltip_text(mixer_item->controls, tooltip_text);
 	gtk_box_append(GTK_BOX(mixer_item->controls), mixer_item->button);
 	gtk_box_append(GTK_BOX(mixer_item->controls), mixer_item->slider);
 	gtk_box_append(GTK_BOX(mixer_item->controls), mixer_item->label);
@@ -93,7 +94,7 @@ static void remove_mixer_item(uint32_t index, void *userdata) {
 	}
 }
 
-static void change_mixer_item(uint32_t index, float volume, int mute, void *userdata) {
+static void change_mixer_item(uint32_t index, float volume, int mute, const char *tooltip_text, void *userdata) {
 	Mixer *mixer = userdata;
 	GList *l = mixer->items;
 	MixerItem *item;
@@ -105,6 +106,7 @@ static void change_mixer_item(uint32_t index, float volume, int mute, void *user
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item->button), mute);
 			gtk_range_set_value(GTK_RANGE(item->slider), volume);
 			gtk_label_set_text(GTK_LABEL(item->label), volume_string);
+			if (tooltip_text != NULL) gtk_widget_set_tooltip_text(item->controls, tooltip_text);
 			break;
 		}
 		l = l->next;
@@ -138,8 +140,9 @@ static void toggle_muted_sink(GtkWidget *toggle, void *userdata) {
 
 static void new_sink(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
 	if (!eol) {
+		const char *card_name = pa_proplist_gets(i->proplist, "alsa.card_name");
 		Mixer *mixer = userdata;
-		MixerItem* sink = new_mixer_item(c, i->index, "audio-volume-medium-symbolic", get_volume(i->volume), i->mute);
+		MixerItem* sink = new_mixer_item(c, i->index, "audio-volume-medium-symbolic", get_volume(i->volume), i->mute, card_name);
 		mixer->items = g_list_append(mixer->items, sink);
 
 		g_signal_connect(sink->button, "clicked", G_CALLBACK(toggle_muted_sink), sink);
@@ -151,7 +154,7 @@ static void new_sink(pa_context *c, const pa_sink_info *i, int eol, void *userda
 
 static void change_sink(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
 	if (!eol) {
-		change_mixer_item(i->index, get_volume(i->volume), i->mute, userdata);
+		change_mixer_item(i->index, get_volume(i->volume), i->mute, NULL, userdata);
 	}
 }
 
@@ -168,7 +171,8 @@ static void toggle_muted_sink_input(GtkWidget *toggle, void *userdata) {
 
 static void change_sink_input(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata) {
 	if (!eol) {
-		change_mixer_item(i->index, get_volume(i->volume), i->mute, userdata);
+		const char *media_name = pa_proplist_gets(i->proplist, "media.name");
+		change_mixer_item(i->index, get_volume(i->volume), i->mute, media_name, userdata);
 	}
 }
 
@@ -176,9 +180,11 @@ static void new_sink_input(pa_context *c, const pa_sink_input_info *i, int eol, 
 	if (!eol) {
 		const char *icon_name = pa_proplist_gets(i->proplist, "application.icon_name");
 		const char *binary_name = pa_proplist_gets(i->proplist, "application.process.binary");
+		const char *application_name = pa_proplist_gets(i->proplist, "application.name");
+		const char *media_name = pa_proplist_gets(i->proplist, "media.name");
 
 		Mixer *mixer = userdata;
-		MixerItem* sink_input = new_mixer_item(c, i->index, (icon_name == NULL) ? binary_name : icon_name, get_volume(i->volume), i->mute);
+		MixerItem* sink_input = new_mixer_item(c, i->index, (icon_name == NULL) ? binary_name : icon_name, get_volume(i->volume), i->mute, (media_name == NULL) ? application_name : media_name);
 		mixer->items = g_list_append(mixer->items, sink_input);
 
 		g_signal_connect(sink_input->button, "clicked", G_CALLBACK(toggle_muted_sink_input), sink_input);
